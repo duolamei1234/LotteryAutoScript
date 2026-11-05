@@ -50,14 +50,16 @@ const page = (ids, total) => ({ code: 0, data: { total, list: ids.map(mid => ({ 
     setup({ code: 0, data: {} });
     assert.strictEqual(await bili.getAttentionList(123), null);
 
-    setup({ code: 0, data: { result: 0 } });
+    // autoRelay 会先取原动态详情（用于还原引用段的 @），再发 create/dyn
+    const emptyDetail = { code: 0, data: { item: { modules: { module_dynamic: { desc: { rich_text_nodes: [] } } } } } };
+    setup(emptyDetail, { code: 0, data: { result: 0 } });
     const text = '😀转发@小明 #话题#@好友';
     const ctrl = JSON.stringify([
         { type: 1, location: 4, length: 3, data: '123' },
         { type: 1, location: 12, length: 3, data: '456' }
     ]);
     assert.strictEqual(await bili.autoRelay(123, '1244325070220820481', text, ctrl), 0);
-    const r = requests[0];
+    const r = requests[requests.length - 1];
     assert.strictEqual(r.url, 'https://api.bilibili.com/x/dynamic/feed/create/dyn');
     assert.strictEqual(r.headers['content-type'], 'application/json');
     assert.deepStrictEqual(r.query, { csrf: 'csrf-test', platform: 'web' });
@@ -69,17 +71,17 @@ const page = (ids, total) => ({ code: 0, data: { total, list: ids.map(mid => ({ 
         { raw_text: ' #话题#', type: 1, biz_id: '' },
         { raw_text: '@好友', type: 2, biz_id: '456' }
     ]);
-    setup({ code: 0 });
+    setup(emptyDetail, { code: 0 });
     assert.strictEqual(await bili.autoRelay(123, '99', 'a'.repeat(230) + '@好友啊', JSON.stringify([{ type: 1, location: 230, length: 4, data: '1' }])), 0);
-    assert.strictEqual(requests[0].contents.dyn_req.content.contents[0].raw_text.length, 230);
-    setup({ code: 0 });
+    assert.strictEqual(requests[requests.length - 1].contents.dyn_req.content.contents[0].raw_text.length, 230);
+    setup(emptyDetail, { code: 0 });
     assert.strictEqual(await bili.autoRelay(123, '99', 'a'.repeat(232) + '😀', '[]'), 0);
-    assert.strictEqual(requests[0].contents.dyn_req.content.contents[0].raw_text.length, 232);
+    assert.strictEqual(requests[requests.length - 1].contents.dyn_req.content.contents[0].raw_text.length, 232);
     setup();
     assert.strictEqual(await bili.autoRelay(123, '99', 'hello', '[bad'), 1);
     assert.strictEqual(requests.length, 0);
     for (const [response, expected] of [[{ code: 1101004 }, 2], [{ code: 2201116 }, 3], [{ code: 1101008 }, 4], [{ code: 4126117 }, 5], [{ code: 0, data: { result: 1 } }, 1], ['HTTP 404', 1]]) {
-        setup(response);
+        setup(emptyDetail, response);
         assert.strictEqual(await bili.autoRelay(123, '99'), expected);
     }
 
